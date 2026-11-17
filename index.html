@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拡散パラメータ実験室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* layout: 左に操作パネル（固定）、右にグラフ3枚のグリッド。狭い画面では1列 */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --ink:#1a2430; --muted:#5b6978;
+  --line:#dbe2e9; --curve:#1c5fc4; --hot:#d4500f; --guide:#8a97a5;
+  --font-body:"IBM Plex Sans JP","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+  --font-num:"IBM Plex Mono","Consolas","Menlo",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161c; --surface:#1a212a; --ink:#e5eaf0; --muted:#9ba8b5;
+    --line:#2d3743; --curve:#6eacff; --hot:#ff9460; --guide:#7b8997;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161c; --surface:#1a212a; --ink:#e5eaf0; --muted:#9ba8b5;
+  --line:#2d3743; --curve:#6eacff; --hot:#ff9460; --guide:#7b8997;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6}
+.page{max-width:1500px;margin:0 auto;padding:20px 16px 32px;display:flex;flex-direction:column;gap:16px}
+header h1{font-size:22px;font-weight:600;margin:0;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:65ch}
+.layout{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+.panel,.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.panel{padding:16px;position:sticky;top:12px;display:flex;flex-direction:column;gap:14px}
+.panel h2{font-size:13px;font-weight:600;color:var(--muted);margin:0;letter-spacing:.04em}
+.group{display:flex;flex-direction:column;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.group:last-of-type{border-bottom:0;padding-bottom:0}
+.ctl{display:flex;flex-direction:column;gap:2px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
+.ctl output{font-family:var(--font-num);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctl small{color:var(--muted);font-size:12px}
+input[type=range]{width:100%;accent-color:var(--curve);margin:2px 0}
+input[type=range]:focus-visible,button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+button{font:inherit;color:inherit;cursor:pointer}
+.reset{align-self:flex-start;background:transparent;border:1px solid var(--line);border-radius:6px;padding:4px 12px;font-size:13px}
+.reset:hover{border-color:var(--curve)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
+.card{padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{font-size:16px;font-weight:600;margin:0}
+.eq{font-family:var(--font-num);font-size:14px;display:flex;flex-wrap:wrap;gap:4px 20px}
+.eq span b{font-weight:500;color:var(--muted);font-family:var(--font-body);font-size:12px;margin-right:6px}
+.toggles{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;align-items:center;gap:6px}
+.seg div{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:3px 10px;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--curve);color:var(--surface)}
+svg{width:100%;height:auto;display:block}
+svg text{font-family:var(--font-num);font-size:11px;fill:var(--muted)}
+svg .lab{font-family:var(--font-body);font-size:12px;fill:var(--ink)}
+svg .grid{stroke:var(--line);stroke-width:1}
+svg .frame{fill:none;stroke:var(--guide);stroke-width:1}
+svg .curve{fill:none;stroke:var(--curve);stroke-width:2.5;stroke-linejoin:round}
+svg .guide{stroke:var(--guide);stroke-width:1;stroke-dasharray:4 4;fill:none}
+svg .tan{stroke:var(--hot);stroke-width:2;fill:none}
+svg .dot{fill:var(--hot);stroke:var(--surface);stroke-width:2}
+svg .note{fill:var(--hot);font-family:var(--font-body);font-size:12px}
+svg .gnote{fill:var(--muted);font-family:var(--font-body);font-size:12px}
+.read{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.read div{border-left:3px solid var(--line);padding:2px 0 2px 10px}
+.read div.hot{border-left-color:var(--hot)}
+.read dt{font-size:12px;color:var(--muted);margin:0}
+.read dd{margin:0;font-family:var(--font-num);font-size:14px;font-variant-numeric:tabular-nums}
+.read{margin:0}
+.model{font-size:12.5px;color:var(--muted);margin:0}
+sup,sub{font-size:.72em;line-height:0}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .panel{position:static}
+  .charts{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <h1>拡散パラメータ実験室</h1>
+  <p>スライダーを動かして、温度・活性化エネルギーと拡散係数、濃度勾配と流束、時間と拡散距離の関係を確かめます。</p>
+</header>
+
+<div class="layout">
+  <aside class="panel" aria-label="パラメータ">
+    <div class="group">
+      <h2>拡散係数を決めるパラメータ</h2>
+      <div class="ctl">
+        <label for="sT">温度 T <output id="oT"></output></label>
+        <input type="range" id="sT" min="600" max="1600" step="10">
+      </div>
+      <div class="ctl">
+        <label for="sQ">活性化エネルギー Q <output id="oQ"></output></label>
+        <input type="range" id="sQ" min="50" max="300" step="1">
+      </div>
+      <div class="ctl">
+        <label for="sD0">振動数因子 D<sub>0</sub> <output id="oD0"></output></label>
+        <input type="range" id="sD0" min="-7" max="-3" step="0.01">
+        <small>初期値は γ-Fe 中の炭素に近い値です。</small>
+      </div>
+    </div>
+    <div class="group">
+      <h2>濃度分布のパラメータ</h2>
+      <div class="ctl">
+        <label for="st">時間 t <output id="ot"></output></label>
+        <input type="range" id="st" min="-2" max="1.38" step="0.01">
+      </div>
+      <div class="ctl">
+        <label for="sCs">表面濃度 C<sub>s</sub> <output id="oCs"></output></label>
+        <input type="range" id="sCs" min="10" max="100" step="1">
+      </div>
+      <div class="ctl">
+        <label for="sx0">観察位置 x<sub>0</sub> <output id="ox0"></output></label>
+        <input type="range" id="sx0" min="0" max="3" step="0.01">
+        <small>この位置での濃度勾配と流束を表示します。</small>
+      </div>
+    </div>
+    <button class="reset" id="reset" type="button">初期値に戻す</button>
+  </aside>
+
+  <main class="charts">
+    <section class="card">
+      <h2>拡散係数と温度（アレニウスの式）</h2>
+      <div class="eq"><span>D = D<sub>0</sub> exp(−Q / RT)</span><span>ln D = ln D<sub>0</sub> − (Q/R)·(1/T)</span></div>
+      <div class="toggles">
+        <span class="seg">横軸<div data-key="aX"><button type="button" data-v="T">T</button><button type="button" data-v="inv">1/T</button></div></span>
+        <span class="seg">縦軸<div data-key="aY"><button type="button" data-v="lin">線形</button><button type="button" data-v="log">対数</button></div></span>
+        <span class="seg">線形時の縦軸上限 (m²/s)<div data-key="aMax"><button type="button" data-v="-13">10<sup>−13</sup></button><button type="button" data-v="-12">10<sup>−12</sup></button><button type="button" data-v="-11">10<sup>−11</sup></button><button type="button" data-v="-10">10<sup>−10</sup></button><button type="button" data-v="-9">10<sup>−9</sup></button><button type="button" data-v="-8">10<sup>−8</sup></button></div></span>
+      </div>
+      <svg id="chA" viewBox="0 0 520 340" role="img" aria-label="拡散係数と温度のグラフ"></svg>
+      <dl class="read">
+        <div class="hot"><dt>現在の拡散係数 D</dt><dd id="rD"></dd></div>
+        <div><dt>アレニウスプロットの傾き −Q/R</dt><dd id="rSlope"></dd></div>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>濃度分布と濃度勾配（Fickの法則）</h2>
+      <div class="eq">
+        <span><b>第一法則</b>J = −D (dC/dx)</span>
+        <span><b>第二法則</b>∂C/∂t = D (∂²C/∂x²)</span>
+      </div>
+      <div class="toggles">
+        <span class="seg">横軸<div data-key="bX"><button type="button" data-v="lin">線形</button><button type="button" data-v="log">対数</button></div></span>
+        <span class="seg">縦軸<div data-key="bY"><button type="button" data-v="lin">線形</button><button type="button" data-v="log">対数</button></div></span>
+      </div>
+      <svg id="chB" viewBox="0 0 520 340" role="img" aria-label="表面からの距離と濃度のグラフ"></svg>
+      <dl class="read">
+        <div class="hot"><dt>x<sub>0</sub> での濃度勾配 dC/dx</dt><dd id="rG"></dd></div>
+        <div class="hot"><dt>x<sub>0</sub> での流束 J</dt><dd id="rJ"></dd></div>
+        <div><dt>x<sub>0</sub> での濃度 C</dt><dd id="rC"></dd></div>
+      </dl>
+      <p class="model">モデル：表面濃度を C<sub>s</sub> に保った半無限固体（初期濃度 0、浸炭に相当）。第二法則の解 C(x, t) = C<sub>s</sub> [1 − erf( x / 2√(Dt) )] を描いています。接線は両軸が線形のときに表示します。</p>
+    </section>
+
+    <section class="card">
+      <h2>拡散距離と時間</h2>
+      <div class="eq"><span>x ≈ √(Dt)</span></div>
+      <div class="toggles">
+        <span class="seg">横軸<div data-key="cX"><button type="button" data-v="lin">線形</button><button type="button" data-v="log">対数</button></div></span>
+        <span class="seg">縦軸<div data-key="cY"><button type="button" data-v="lin">線形</button><button type="button" data-v="log">対数</button></div></span>
+      </div>
+      <svg id="chC" viewBox="0 0 520 340" role="img" aria-label="時間と拡散距離のグラフ"></svg>
+      <dl class="read">
+        <div class="hot"><dt>現在の拡散距離 √(Dt)</dt><dd id="rL"></dd></div>
+        <div><dt>時間を 4 倍にしたとき</dt><dd id="rL4"></dd></div>
+      </dl>
+    </section>
+  </main>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const R = 8.314;
+const DEF = {T:1200, Q:148, lD0:-4.64, lt:0, Cs:80, x0:0.2};
+const S = Object.assign({}, DEF);
+const AX = {aX:"T", aY:"lin", aMax:"-9", bX:"lin", bY:"lin", cX:"lin", cY:"lin"};
+const $ = id => document.getElementById(id);
+
+/* ---------- 数式 ---------- */
+function erf(x){
+  const s = x<0?-1:1; x=Math.abs(x);
+  const t = 1/(1+0.3275911*x);
+  const y = 1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y;
+}
+const Dof = T => Math.pow(10,S.lD0)*Math.exp(-S.Q*1000/(R*T));   // m²/s
+const conc = (xm, D, ts) => S.Cs*(1-erf(xm/(2*Math.sqrt(D*ts)))); // kg/m³
+
+/* ---------- 表記 ---------- */
+const MINUS = "−";
+function sciParts(v, dig){
+  if(v===0) return {m:"0", e:0};
+  let e = Math.floor(Math.log10(Math.abs(v)));
+  let m = v/Math.pow(10,e);
+  let ms = m.toFixed(dig);
+  if(Math.abs(parseFloat(ms))>=10){ e+=1; ms=(v/Math.pow(10,e)).toFixed(dig); }
+  return {m:ms.replace("-",MINUS), e:e};
+}
+function sciHTML(v, dig, unit){
+  const p = sciParts(v, dig===undefined?2:dig);
+  return p.m+" × 10<sup>"+String(p.e).replace("-",MINUS)+"</sup>"+(unit?" "+unit:"");
+}
+function lenHTML(mm){
+  if(mm>=0.1) return mm.toFixed(mm>=10?1:3)+" mm";
+  if(mm>=1e-4) return (mm*1000).toFixed(mm*1000>=10?1:2)+" µm";
+  return (mm*1e6).toFixed(2)+" nm";
+}
+function timeText(h){
+  const s = h*3600;
+  if(h>=1) return h.toFixed(h>=10?1:2)+" h";
+  if(s>=60) return (s/60).toFixed(1)+" min";
+  return s.toFixed(0)+" s";
+}
+
+/* ---------- 描画の共通部品 ---------- */
+const VB = {w:520,h:340,l:66,r:16,t:14,b:48};
+const PW = VB.w-VB.l-VB.r, PH = VB.h-VB.t-VB.b;
+function scale(min,max,log,a,b){
+  const f = log?Math.log10:(v=>v);
+  const f0=f(min), f1=f(max);
+  return v => a+(f(v)-f0)/(f1-f0)*(b-a);
+}
+function linTicks(min,max,n){
+  const raw=(max-min)/n, p=Math.pow(10,Math.floor(Math.log10(raw))), q=raw/p;
+  const step=(q<1.5?1:q<3.5?2:q<7.5?5:10)*p;
+  const out=[]; for(let v=Math.ceil(min/step-1e-9)*step; v<=max+step*1e-6; v+=step) out.push(Math.abs(v)<step*1e-9?0:v);
+  return {ticks:out, step:step};
+}
+function logTicks(min,max){
+  const a=Math.round(Math.log10(min)), b=Math.round(Math.log10(max));
+  const n=b-a, st=n>20?4:n>10?2:1, out=[];
+  for(let e=a;e<=b;e+=st) out.push(e);
+  return out;
+}
+function fmtLin(v,step){
+  const d=Math.max(0,-Math.floor(Math.log10(step)+1e-9));
+  return v.toFixed(d).replace("-",MINUS);
+}
+function pow10SVG(e){ return '10<tspan dy="-5" font-size="9">'+String(e).replace("-",MINUS)+'</tspan>'; }
+/* 軸ラベル中の ^{...} を上付きに */
+function supSVG(s){
+  return s.replace(/\^\{([^}]*)\}/g,(m,g)=>'<tspan dy="-5" font-size="9">'+g+'</tspan><tspan dy="5"> </tspan>');
+}
+function pathOf(pts, sx, sy, yMinClamp, yMaxClamp){
+  let d="", pen=false;
+  for(const p of pts){
+    let y=p[1];
+    if(!isFinite(y)||!isFinite(p[0])){pen=false;continue;}
+    y=Math.min(Math.max(y,yMinClamp),yMaxClamp);
+    d+=(pen?"L":"M")+sx(p[0]).toFixed(1)+" "+sy(y).toFixed(1);
+    pen=true;
+  }
+  return d;
+}
+/* cfg: {x:{min,max,log,label,pow}, y:{...}, body:(sx,sy)=>svg文字列} */
+function frame(svg, cfg){
+  const id=svg.id;
+  const sx=scale(cfg.x.min,cfg.x.max,cfg.x.log,VB.l,VB.l+PW);
+  const sy=scale(cfg.y.min,cfg.y.max,cfg.y.log,VB.t+PH,VB.t);
+  let g="";
+  if(cfg.x.log){
+    for(const e of logTicks(cfg.x.min,cfg.x.max)){
+      const X=sx(Math.pow(10,e)).toFixed(1);
+      g+='<line class="grid" x1="'+X+'" x2="'+X+'" y1="'+VB.t+'" y2="'+(VB.t+PH)+'"/>';
+      g+='<text x="'+X+'" y="'+(VB.t+PH+18)+'" text-anchor="middle">'+pow10SVG(e)+'</text>';
+    }
+  }else{
+    const tk=linTicks(cfg.x.min,cfg.x.max,6);
+    for(const v of tk.ticks){
+      const X=sx(v).toFixed(1);
+      g+='<line class="grid" x1="'+X+'" x2="'+X+'" y1="'+VB.t+'" y2="'+(VB.t+PH)+'"/>';
+      g+='<text x="'+X+'" y="'+(VB.t+PH+16)+'" text-anchor="middle">'+fmtLin(v,tk.step)+'</text>';
+    }
+  }
+  if(cfg.y.log){
+    for(const e of logTicks(cfg.y.min,cfg.y.max)){
+      const Y=sy(Math.pow(10,e)).toFixed(1);
+      g+='<line class="grid" x1="'+VB.l+'" x2="'+(VB.l+PW)+'" y1="'+Y+'" y2="'+Y+'"/>';
+      g+='<text x="'+(VB.l-10)+'" y="'+(+Y+4)+'" text-anchor="end">'+pow10SVG(e)+'</text>';
+    }
+  }else{
+    const tk=linTicks(cfg.y.min,cfg.y.max,5);
+    const div=cfg.y.div||1;
+    for(const v of tk.ticks){
+      const Y=sy(v).toFixed(1);
+      g+='<line class="grid" x1="'+VB.l+'" x2="'+(VB.l+PW)+'" y1="'+Y+'" y2="'+Y+'"/>';
+      g+='<text x="'+(VB.l-8)+'" y="'+(+Y+4)+'" text-anchor="end">'+fmtLin(v/div,tk.step/div)+'</text>';
+    }
+  }
+  g+='<rect class="frame" x="'+VB.l+'" y="'+VB.t+'" width="'+PW+'" height="'+PH+'"/>';
+  g+='<text class="lab" x="'+(VB.l+PW/2)+'" y="'+(VB.h-8)+'" text-anchor="middle">'+supSVG(cfg.x.label)+'</text>';
+  g+='<text class="lab" transform="translate(16 '+(VB.t+PH/2)+') rotate(-90)" text-anchor="middle">'+supSVG(cfg.y.label)+'</text>';
+  g+='<defs><clipPath id="clip-'+id+'"><rect x="'+VB.l+'" y="'+VB.t+'" width="'+PW+'" height="'+PH+'"/></clipPath></defs>';
+  g+='<g clip-path="url(#clip-'+id+')">'+cfg.body(sx,sy)+'</g>';
+  if(cfg.over) g+=cfg.over(sx,sy);
+  svg.innerHTML=g;
+}
+const inRange=(v,a)=>v>=a.min&&v<=a.max;
+function guides(px,py,sx,sy){
+  return '<path class="guide" d="M'+sx.toFixed(1)+' '+(VB.t+PH)+'V'+sy.toFixed(1)+'H'+VB.l+'"/>';
+}
+
+/* ---------- グラフA：アレニウス ---------- */
+function drawA(){
+  const inv = AX.aX==="inv", ylog = AX.aY==="log";
+  const xOf = T => inv?1e4/T:T;
+  const xa = inv ? {min:6,max:17,log:false,label:"10^{4}/T  (K^{"+MINUS+"1})"}
+                 : {min:600,max:1600,log:false,label:"温度 T  (K)"};
+  let ya;
+  if(ylog){ ya={min:1e-34,max:1e-2,log:true,label:"拡散係数 D  (m^{2}/s)"}; }
+  else{
+    const e=parseInt(AX.aMax,10), p=Math.pow(10,e);
+    ya={min:0,max:p,log:false,div:p,label:"拡散係数 D  (×10^{"+String(e).replace("-",MINUS)+"} m^{2}/s)"};
+  }
+  const pts=[]; for(let i=0;i<=200;i++){ const T=600+i*5; pts.push([xOf(T),Dof(T)]); }
+  const Dn=Dof(S.T);
+  frame($("chA"),{x:xa,y:ya,
+    body:(sx,sy)=>{
+      const lo=ylog?ya.min/10:-ya.max, hi=ylog?ya.max*10:ya.max*2;
+      let s='<path class="curve" d="'+pathOf(pts,sx,sy,lo,hi)+'"/>';
+      if(inRange(Dn,ya)){
+        const X=sx(xOf(S.T)), Y=sy(Dn);
+        s+=guides(0,0,X,Y)+'<circle class="dot" cx="'+X.toFixed(1)+'" cy="'+Y.toFixed(1)+'" r="6"/>';
+      }else if(Dn>ya.max){
+        const X=sx(xOf(S.T)), right=X<VB.l+PW-150;
+        s+='<line class="guide" x1="'+X.toFixed(1)+'" x2="'+X.toFixed(1)+'" y1="'+VB.t+'" y2="'+(VB.t+PH)+'"/>';
+        s+='<text class="note" x="'+(X+(right?8:-8)).toFixed(1)+'" y="'+(VB.t+16)+'" text-anchor="'+(right?"start":"end")+'">現在値は上限より上 ↑</text>';
+      }
+      return s;
+    }});
+  $("rD").innerHTML=sciHTML(Dn,2,"m²/s");
+  $("rSlope").innerHTML=MINUS+Math.round(S.Q*1000/R).toLocaleString("ja-JP")+" K";
+}
+
+/* ---------- グラフB：濃度分布 ---------- */
+function drawB(){
+  const xlog=AX.bX==="log", ylog=AX.bY==="log";
+  const D=Dof(S.T), ts=Math.pow(10,S.lt)*3600;
+  const xa=xlog?{min:1e-3,max:10,log:true,label:"表面からの距離 x  (mm)"}:{min:0,max:3,log:false,label:"表面からの距離 x  (mm)"};
+  const ya=ylog?{min:1e-2,max:100,log:true,label:"濃度 C  (kg/m^{3})"}:{min:0,max:100,log:false,label:"濃度 C  (kg/m^{3})"};
+  const pts=[];
+  for(let i=0;i<=240;i++){
+    const x=xlog?Math.pow(10,-3+4*i/240):3*i/240;
+    pts.push([x,conc(x*1e-3,D,ts)]);
+  }
+  const Lmm=Math.sqrt(D*ts)*1e3;
+  const x0m=S.x0*1e-3;
+  const C0=conc(x0m,D,ts);
+  const grad=-S.Cs/Math.sqrt(Math.PI*D*ts)*Math.exp(-x0m*x0m/(4*D*ts)); // kg/m⁴
+  const J=-D*grad;                                                     // kg/(m²·s)
+  frame($("chB"),{x:xa,y:ya,
+    body:(sx,sy)=>{
+      const lo=ylog?ya.min/10:-10, hi=ylog?ya.max*10:200;
+      let s="";
+      if(inRange(Lmm,xa)){
+        const X=sx(Lmm).toFixed(1);
+        s+='<line class="guide" x1="'+X+'" x2="'+X+'" y1="'+VB.t+'" y2="'+(VB.t+PH)+'"/>';
+        const right=+X<VB.l+PW-70;
+        s+='<text class="gnote" x="'+(+X+(right?6:-6))+'" y="'+(VB.t+16)+'" text-anchor="'+(right?"start":"end")+'">√(Dt)</text>';
+      }
+      s+='<path class="curve" d="'+pathOf(pts,sx,sy,lo,hi)+'"/>';
+      if(inRange(S.x0,xa)&&(!ylog||C0>=ya.min)){
+        const X=sx(S.x0), Y=sy(C0);
+        if(!xlog&&!ylog){
+          const gmm=grad*1e-3, h=0.45;
+          s+='<path class="tan" d="M'+sx(S.x0-h).toFixed(1)+' '+sy(C0-gmm*h).toFixed(1)+'L'+sx(S.x0+h).toFixed(1)+' '+sy(C0+gmm*h).toFixed(1)+'"/>';
+        }
+        s+='<circle class="dot" cx="'+X.toFixed(1)+'" cy="'+Y.toFixed(1)+'" r="6"/>';
+        const right=X<VB.l+PW-40;
+        s+='<text class="note" x="'+(X+(right?10:-10)).toFixed(1)+'" y="'+Math.max(Y-10,VB.t+14).toFixed(1)+'" text-anchor="'+(right?"start":"end")+'">x₀</text>';
+      }
+      return s;
+    }});
+  $("rG").innerHTML=sciHTML(grad,2,"kg/m⁴");
+  $("rJ").innerHTML=sciHTML(J,2,"kg/(m²·s)");
+  $("rC").innerHTML=C0.toFixed(C0>=1?1:3)+" kg/m³";
+}
+
+/* ---------- グラフC：拡散距離 ---------- */
+function drawC(){
+  const xlog=AX.cX==="log", ylog=AX.cY==="log";
+  const D=Dof(S.T), h=Math.pow(10,S.lt);
+  const xa=xlog?{min:1e-2,max:100,log:true,label:"時間 t  (h)"}:{min:0,max:24,log:false,label:"時間 t  (h)"};
+  const ya=ylog?{min:1e-5,max:10,log:true,label:"拡散距離 √(Dt)  (mm)"}:{min:0,max:3,log:false,label:"拡散距離 √(Dt)  (mm)"};
+  const Lof=hh=>Math.sqrt(D*hh*3600)*1e3;
+  const pts=[];
+  for(let i=0;i<=240;i++){
+    const t=xlog?Math.pow(10,-2+4*i/240):24*i/240;
+    pts.push([t,Lof(t)]);
+  }
+  const L=Lof(h);
+  frame($("chC"),{x:xa,y:ya,
+    body:(sx,sy)=>{
+      const lo=ylog?ya.min/10:-1, hi=ylog?ya.max*10:6;
+      let s='<path class="curve" d="'+pathOf(ylog?pts.filter(p=>p[1]>0):pts,sx,sy,lo,hi)+'"/>';
+      if(inRange(h,xa)&&L<=ya.max&&(!ylog||L>=ya.min)){
+        const X=sx(h), Y=sy(L);
+        s+=guides(0,0,X,Y)+'<circle class="dot" cx="'+X.toFixed(1)+'" cy="'+Y.toFixed(1)+'" r="6"/>';
+      }
+      return s;
+    }});
+  $("rL").innerHTML=lenHTML(L);
+  $("rL4").innerHTML=lenHTML(2*L)+"（2 倍）";
+}
+
+/* ---------- 操作 ---------- */
+function outputs(){
+  $("oT").textContent=S.T+" K（"+(S.T-273)+" ℃）";
+  $("oQ").textContent=S.Q+" kJ/mol";
+  $("oD0").innerHTML=sciHTML(Math.pow(10,S.lD0),1,"m²/s");
+  const h=Math.pow(10,S.lt);
+  $("ot").textContent=timeText(h)+(h>=1?"":"")+"（"+Math.round(h*3600).toLocaleString("ja-JP")+" s）";
+  $("oCs").textContent=S.Cs+" kg/m³";
+  $("ox0").textContent=S.x0.toFixed(2)+" mm";
+}
+function render(){ outputs(); drawA(); drawB(); drawC(); }
+const MAP={sT:"T",sQ:"Q",sD0:"lD0",st:"lt",sCs:"Cs",sx0:"x0"};
+function syncSliders(){ for(const id in MAP) $(id).value=S[MAP[id]]; }
+for(const id in MAP){
+  $(id).addEventListener("input",e=>{ S[MAP[id]]=parseFloat(e.target.value); render(); });
+}
+$("reset").addEventListener("click",()=>{ Object.assign(S,DEF); syncSliders(); render(); });
+function syncToggles(){
+  document.querySelectorAll(".seg div").forEach(d=>{
+    d.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", String(AX[d.dataset.key]===b.dataset.v)));
+  });
+}
+document.querySelectorAll(".seg button").forEach(b=>{
+  b.addEventListener("click",()=>{ AX[b.parentElement.dataset.key]=b.dataset.v; syncToggles(); render(); });
+});
+syncSliders(); syncToggles(); render();
+})();
+</script>
+</body>
+</html>
